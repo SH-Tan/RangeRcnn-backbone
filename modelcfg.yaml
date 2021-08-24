@@ -1,0 +1,12 @@
+
+BACKBONE_2D:
+        NAME: RangeNet
+
+         
+        DownSample_LAYER_NUM: [1, 1, 1, 1, 1, 1]
+        UpSample_LAYER_NUM: [1, 1, 1, 1]
+          
+        # DOWN_LAYER_STRIDES: [1, 1, 1, 1, 1, 1]
+        DOWN_NUM_FILTERS: [32, 64, 128, 128, 256, 256]
+        # UPSAMPLE_STRIDES: [1, 1, 1, 1]
+        UP_NUM_FILTERS: [128, 128, 64, 64]
