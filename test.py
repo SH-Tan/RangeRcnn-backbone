@@ -7,7 +7,10 @@ from rangenet import RangeNet,DRB
 import yaml
 from easydict import EasyDict
 from pathlib import Path
+import random
+from pv2bev import gen_bev_map
 
+random.seed(10)
 
 def merge_new_config(config, new_config):
     if '_BASE_CONFIG_' in new_config:
@@ -107,15 +110,72 @@ dil_c3 = nn.Sequential(OrderedDict([
             ('relu3', nn.ReLU())
         ]))
 
-x = torch.randn(1,5,64,512)
+x = torch.randn(2,3,2)
+z = torch.randn(2,5,6)
 
+a = np.random.randn(5,)
+b = np.random.randn(2,)
+val = [a,b]
+max_n = max([len(x) for x in val])
+poi = []
+for i, p in enumerate(val):
+    print(p)
+    pad_l = max_n - len(p)
+    p_pad = np.pad(p, (0, pad_l), mode='constant', constant_values=0)
+    print(p_pad)
+    poi.append(p_pad)
+
+c = np.stack(poi,axis = 0)
+
+print(c.shape)
+
+
+# i = gen_bev_map(x)
+
+
+# y = x[:,0,:]
+
+# filt = np.logical_and((y>0), (y<1))
+# indices = np.argwhere(filt)
+# fil = y[indices]
+
+# fil = y[:,indices[:,1]]
+
+
+'''
+p_y = np.zeros([5],np.int)
+p_x = np.zeros([5],np.int)
+
+for i in range(5):
+    p_y[i] = random.randint(0,2)
+    p_x[i] = random.randint(0,2)
+
+print(p_y)
+print(p_x)
+
+val = np.array([0,1,2,3,4])
+
+
+proj_xyz = np.full((3, 3), -1, dtype=np.float32)
+
+proj_xyz[p_y,p_x] = val
+
+print(proj_xyz[p_y,p_x].shape)
+print(proj_xyz)
+'''
+'''
 net = RangeNet(x, cfg)
 
 down, up = net(x)
 
-# up_in = nn.functional.interpolate(x, scale_factor=(2,2), mode='bilinear', align_corners=True)
+up_in = nn.functional.interpolate(x, scale_factor=(2,2), mode='bilinear', align_corners=True)
 
-print(net)
+
+out = up[len(up) - 1]
+
+print(out.shape)
+'''
+# print(net)
 
 '''
 o = dil_c1(x)

@@ -33,4 +33,4 @@ def point_vis(file_str):
     mayavi.mlab.show()
 
 if __name__ == '__main__':
-    point_vis('./data/lab/000000.bin')
+    point_vis('./data/kitti/bin/002394.bin')

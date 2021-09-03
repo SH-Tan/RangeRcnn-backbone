@@ -4,6 +4,7 @@ import numpy as np
 import sys
 
 from numpy.testing._private.utils import decorate_methods
+import torch
 sys.path.remove('/opt/ros/kinetic/lib/python2.7/dist-packages')
 import cv2 as cv
 
@@ -11,7 +12,7 @@ class LaserScan:
   """Class that contains LaserScan with x,y,z,r"""
   EXTENSIONS_SCAN = ['.bin']
 
-  def __init__(self, project=False, H=64, W=1024, fov_up=3.0, fov_down=-25.0):
+  def __init__(self, project=False, H=48, W=512, fov_up=3.0, fov_down=-25.0):
     self.project = project
     self.proj_H = H
     self.proj_W = W
@@ -25,7 +26,7 @@ class LaserScan:
     self.remissions = np.zeros((0, 1), dtype=np.float32)    # [m ,1]: remission
 
     # projected range image - [H,W] range (-1 is no data)
-    self.proj_range = np.full((self.proj_H, self.proj_W, 3), 0,
+    self.proj_range = np.full((self.proj_H, self.proj_W), -1,
                               dtype=np.float32)
 
     # unprojected range (list of depths for each point)
@@ -77,12 +78,14 @@ class LaserScan:
     scan = np.fromfile(filename, dtype=np.float32)
     scan = scan.reshape((-1, 4))
 
+
     # put in attribute
     points = scan[:, 0:3]    # get xyz
     remissions = scan[:, 3]  # get remission
-    self.set_points(points, n, remissions)
+    out_dict = self.set_points(points, n, remissions, scan)
+    return out_dict
 
-  def set_points(self, points, n, remissions=None):
+  def set_points(self, points, n, remissions=None, scan=None):
     """ Set scan attributes (instead of opening from file)
     """
     # reset just in case there was an open structure
@@ -96,6 +99,8 @@ class LaserScan:
     if remissions is not None and not isinstance(remissions, np.ndarray):
       raise TypeError("Remissions should be numpy array")
 
+    self.scan = scan
+
     # put in attribute
     self.points = points    # get xyz
     if remissions is not None:
@@ -105,7 +110,9 @@ class LaserScan:
 
     # if projection is wanted, then do it and fill in the structure
     if self.project:
-      self.do_range_projection(n)
+      out_dict = self.do_range_projection(n)
+
+    return out_dict
 
   def do_range_projection(self, n):
     """ Project a pointcloud into a spherical projection image.projection.
@@ -138,6 +145,7 @@ class LaserScan:
     proj_x *= self.proj_W                              # in [0.0, W]
     proj_y *= self.proj_H                              # in [0.0, H]
 
+
     # round and clamp for use as index
     proj_x = np.floor(proj_x)
     proj_x = np.minimum(self.proj_W - 1, proj_x)
@@ -154,23 +162,46 @@ class LaserScan:
 
     # order in decreasing depth，从远到近排序
     indices = np.arange(depth.shape[0]) # 固定步长的排列，[0,shape[0]-1],步长1
-    order = np.argsort(depth)[::-1] # 从大到小
+    order = np.argsort(depth)[::-1] # 从大到小,远2近
     depth = depth[order]
     indices = indices[order]
     points = self.points[order]
     remission = self.remissions[order]
     proj_y = proj_y[order]
     proj_x = proj_x[order]
-    g = np.zeros([depth.shape[0],3])
-    g[:,1] = depth
-    g[:,2] = 0
-    g[:,0] = 0
+    scan = self.scan[order]
+
     # assing to images
-    self.proj_range[proj_y, proj_x] = g
+    self.proj_range[proj_y, proj_x] = depth
+    print(self.proj_range[0,0])
+    a = torch.from_numpy(self.proj_range).unsqueeze(2)
+
     self.proj_xyz[proj_y, proj_x] = points
+    b = torch.from_numpy(self.proj_xyz)
+
     self.proj_remission[proj_y, proj_x] = remission
+    c = torch.from_numpy(self.proj_remission).unsqueeze(2)
+
     self.proj_idx[proj_y, proj_x] = indices
     self.proj_mask = (self.proj_idx > 0).astype(np.int32)
+
+    self.proj_i = torch.cat((a,b,c), 2)
+
+
+    out_dict = {
+      'range': self.proj_range,
+      'ori_xyz': self.proj_xyz,
+      'ori_r': self.proj_remission,
+      'idx': self.proj_idx,
+      'mask': self.proj_mask,
+      'range_in': self.proj_i,
+      'y': proj_y,
+      'x': proj_x,
+      'points': scan,
+    }
+
+    return out_dict
+
 
     # cv.imwrite('range' + n + '.jpg', self.proj_range)
     # print(self.proj_range)
